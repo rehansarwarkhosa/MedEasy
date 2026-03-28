@@ -1,6 +1,6 @@
 import MedicineCard from './MedicineCard';
 
-const CategorySection = ({ category, onToggle }) => {
+const CategorySection = ({ category, stockEnabled, onToggle }) => {
   const sortedMedicines = [...category.medicines].sort((a, b) => a.order - b.order);
 
   return (
@@ -20,6 +20,7 @@ const CategorySection = ({ category, onToggle }) => {
             key={med.id}
             medicine={med}
             categoryId={category.id}
+            stockEnabled={stockEnabled}
             onToggle={onToggle}
           />
         ))}

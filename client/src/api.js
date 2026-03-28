@@ -10,6 +10,12 @@ const request = async (url, options = {}) => {
 
 export const getData = () => request('/data');
 
+export const updateSettings = (settings) =>
+  request('/settings', {
+    method: 'PUT',
+    body: JSON.stringify(settings)
+  });
+
 export const createCategory = (name, color) =>
   request('/categories', {
     method: 'POST',
@@ -57,6 +63,15 @@ export const toggleMedicine = (categoryId, medicineId) =>
     method: 'POST',
     body: JSON.stringify({ categoryId, medicineId })
   });
+
+export const createHealthLog = (entry) =>
+  request('/health-logs', {
+    method: 'POST',
+    body: JSON.stringify(entry)
+  });
+
+export const deleteHealthLog = (id) =>
+  request(`/health-logs/${id}`, { method: 'DELETE' });
 
 export const exportData = () => {
   window.open(`${BASE}/export`, '_blank');

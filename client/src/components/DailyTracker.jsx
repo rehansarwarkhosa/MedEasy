@@ -45,7 +45,12 @@ const DailyTracker = ({ data, onRefresh }) => {
         </div>
       </div>
       {sortedCategories.map(cat => (
-        <CategorySection key={cat.id} category={cat} onToggle={handleToggle} />
+        <CategorySection
+          key={cat.id}
+          category={cat}
+          stockEnabled={data.stockEnabled}
+          onToggle={handleToggle}
+        />
       ))}
     </div>
   );

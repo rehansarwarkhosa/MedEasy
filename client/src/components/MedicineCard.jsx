@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import ConfirmPopup from './ConfirmPopup';
 
-const MedicineCard = ({ medicine, categoryId, onToggle }) => {
+const MedicineCard = ({ medicine, categoryId, stockEnabled, onToggle }) => {
   const [popup, setPopup] = useState(null);
 
   const handleTap = () => {
@@ -24,16 +24,18 @@ const MedicineCard = ({ medicine, categoryId, onToggle }) => {
     }
   };
 
-  const isLowStock = medicine.stock <= 5;
+  const isLowStock = stockEnabled && medicine.stock <= 5;
   const cardClass = `medicine-card ${medicine.taken ? 'taken' : 'not-taken'} ${isLowStock ? 'low-stock' : ''}`;
 
   return (
     <>
       <button className={cardClass} onClick={handleTap}>
         <span className="medicine-name">{medicine.name}</span>
-        <span className="medicine-stock">
-          {medicine.stock} left
-        </span>
+        {stockEnabled && (
+          <span className="medicine-stock">
+            {medicine.stock} left
+          </span>
+        )}
         {medicine.taken && (
           <span className="medicine-check">
             <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">

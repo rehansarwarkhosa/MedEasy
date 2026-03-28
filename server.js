@@ -23,7 +23,9 @@ if (!existsSync(DATA_DIR)) {
 
 const getDefaultData = () => ({
   categories: [],
-  lastResetDate: ''
+  healthLogs: [],
+  lastResetDate: '',
+  stockEnabled: false
 });
 
 const readData = () => {
@@ -33,7 +35,10 @@ const readData = () => {
       writeFileSync(DATA_FILE, JSON.stringify(defaultData, null, 2));
       return defaultData;
     }
-    return JSON.parse(readFileSync(DATA_FILE, 'utf-8'));
+    const raw = JSON.parse(readFileSync(DATA_FILE, 'utf-8'));
+    if (!raw.healthLogs) raw.healthLogs = [];
+    if (raw.stockEnabled === undefined) raw.stockEnabled = false;
+    return raw;
   } catch {
     return getDefaultData();
   }
@@ -43,14 +48,21 @@ const saveData = (data) => {
   writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
 };
 
-const getTodayPK = () => {
+const getPKDateTime = () => {
   const now = new Date();
   const pk = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Karachi' }));
   const year = pk.getFullYear();
   const month = String(pk.getMonth() + 1).padStart(2, '0');
   const day = String(pk.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  const hours = String(pk.getHours()).padStart(2, '0');
+  const minutes = String(pk.getMinutes()).padStart(2, '0');
+  return {
+    date: `${year}-${month}-${day}`,
+    time: `${hours}:${minutes}`
+  };
 };
+
+const getTodayPK = () => getPKDateTime().date;
 
 const resetDailyStatuses = () => {
   const data = readData();
@@ -85,6 +97,14 @@ app.put('/api/data', (req, res) => {
   const data = req.body;
   saveData(data);
   res.json({ success: true });
+});
+
+app.put('/api/settings', (req, res) => {
+  const data = readData();
+  const { stockEnabled } = req.body;
+  if (stockEnabled !== undefined) data.stockEnabled = stockEnabled;
+  saveData(data);
+  res.json(data);
 });
 
 app.post('/api/categories', (req, res) => {
@@ -197,11 +217,41 @@ app.post('/api/toggle-medicine', (req, res) => {
   if (!med) return res.status(404).json({ error: 'Medicine not found' });
   if (!med.taken) {
     med.taken = true;
-    med.stock = Math.max(0, med.stock - 1);
+    if (data.stockEnabled) med.stock = Math.max(0, med.stock - 1);
   } else {
     med.taken = false;
-    med.stock = med.stock + 1;
+    if (data.stockEnabled) med.stock = med.stock + 1;
   }
+  saveData(data);
+  res.json(data);
+});
+
+app.post('/api/health-logs', (req, res) => {
+  const data = readData();
+  const { type, systolic, diastolic, pulse, sugarType, sugarLevel } = req.body;
+  const { date, time } = getPKDateTime();
+  const entry = {
+    id: uuidv4(),
+    type,
+    date,
+    time
+  };
+  if (type === 'bp') {
+    entry.systolic = parseInt(systolic) || 0;
+    entry.diastolic = parseInt(diastolic) || 0;
+    entry.pulse = pulse ? parseInt(pulse) : null;
+  } else if (type === 'sugar') {
+    entry.sugarType = sugarType || 'fasting';
+    entry.sugarLevel = parseInt(sugarLevel) || 0;
+  }
+  data.healthLogs.unshift(entry);
+  saveData(data);
+  res.json(data);
+});
+
+app.delete('/api/health-logs/:id', (req, res) => {
+  const data = readData();
+  data.healthLogs = data.healthLogs.filter(l => l.id !== req.params.id);
   saveData(data);
   res.json(data);
 });
@@ -219,6 +269,8 @@ app.post('/api/import', upload.single('file'), (req, res) => {
     if (!imported.categories || !Array.isArray(imported.categories)) {
       return res.status(400).json({ error: 'Invalid data format' });
     }
+    if (!imported.healthLogs) imported.healthLogs = [];
+    if (imported.stockEnabled === undefined) imported.stockEnabled = false;
     imported.lastResetDate = imported.lastResetDate || '';
     saveData(imported);
     res.json(imported);

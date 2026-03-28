@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getData } from './api';
 import DailyTracker from './components/DailyTracker';
+import HealthLog from './components/HealthLog';
 import Settings from './components/Settings';
 import BottomNav from './components/BottomNav';
 
 const App = () => {
-  const [data, setData] = useState({ categories: [], lastResetDate: '' });
+  const [data, setData] = useState({ categories: [], healthLogs: [], lastResetDate: '', stockEnabled: false });
   const [activeTab, setActiveTab] = useState('tracker');
   const [loading, setLoading] = useState(true);
 
@@ -32,7 +33,7 @@ const App = () => {
     return (
       <div className="loading-screen">
         <div className="loading-text">MedEasy</div>
-        <div className="loading-sub">Loading your medicines...</div>
+        <div className="loading-sub">Loading...</div>
       </div>
     );
   }
@@ -43,9 +44,13 @@ const App = () => {
         <h1 className="app-title">MedEasy</h1>
       </div>
       <div className="app-content">
-        {activeTab === 'tracker' ? (
+        {activeTab === 'tracker' && (
           <DailyTracker data={data} onRefresh={fetchData} />
-        ) : (
+        )}
+        {activeTab === 'health' && (
+          <HealthLog data={data} onRefresh={fetchData} />
+        )}
+        {activeTab === 'settings' && (
           <Settings data={data} onRefresh={fetchData} />
         )}
       </div>

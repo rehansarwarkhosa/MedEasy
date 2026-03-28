@@ -8,6 +8,7 @@ import {
   updateMedicine,
   deleteMedicine,
   reorderMedicines,
+  updateSettings,
   exportData,
   importData
 } from '../api';
@@ -36,6 +37,11 @@ const Settings = ({ data, onRefresh }) => {
   const fileInputRef = useRef(null);
 
   const sortedCategories = [...data.categories].sort((a, b) => a.order - b.order);
+
+  const handleToggleStock = async () => {
+    await updateSettings({ stockEnabled: !data.stockEnabled });
+    await onRefresh();
+  };
 
   const handleCreateCategory = async () => {
     if (!catName.trim()) return;
@@ -74,8 +80,9 @@ const Settings = ({ data, onRefresh }) => {
   };
 
   const handleCreateMedicine = async (categoryId) => {
-    if (!medName.trim() || medStock === '') return;
-    await createMedicine(categoryId, medName.trim(), parseInt(medStock) || 0);
+    if (!medName.trim()) return;
+    if (data.stockEnabled && medStock === '') return;
+    await createMedicine(categoryId, medName.trim(), data.stockEnabled ? (parseInt(medStock) || 0) : 0);
     setMedName('');
     setMedStock('');
     await onRefresh();
@@ -89,10 +96,9 @@ const Settings = ({ data, onRefresh }) => {
 
   const handleUpdateMedicine = async (categoryId, medicineId) => {
     if (!editMedName.trim()) return;
-    await updateMedicine(categoryId, medicineId, {
-      name: editMedName.trim(),
-      stock: parseInt(editMedStock) || 0
-    });
+    const updates = { name: editMedName.trim() };
+    if (data.stockEnabled) updates.stock = parseInt(editMedStock) || 0;
+    await updateMedicine(categoryId, medicineId, updates);
     setEditingMed(null);
     await onRefresh();
   };
@@ -138,6 +144,22 @@ const Settings = ({ data, onRefresh }) => {
 
   return (
     <div className="settings">
+      <section className="settings-section">
+        <h2 className="section-title">Stock Tracking</h2>
+        <div className="toggle-row">
+          <span className="toggle-label">Track medicine stock</span>
+          <button
+            className={`toggle-switch ${data.stockEnabled ? 'on' : ''}`}
+            onClick={handleToggleStock}
+          >
+            <span className="toggle-knob" />
+          </button>
+        </div>
+        {data.stockEnabled && (
+          <p className="toggle-hint">Stock will decrease when you mark a medicine as taken</p>
+        )}
+      </section>
+
       <section className="settings-section">
         <h2 className="section-title">Add New Category</h2>
         <div className="form-group">
@@ -268,14 +290,16 @@ const Settings = ({ data, onRefresh }) => {
                     value={medName}
                     onChange={e => setMedName(e.target.value)}
                   />
-                  <input
-                    className="form-input form-input-small"
-                    type="number"
-                    placeholder="Stock"
-                    min="0"
-                    value={medStock}
-                    onChange={e => setMedStock(e.target.value)}
-                  />
+                  {data.stockEnabled && (
+                    <input
+                      className="form-input form-input-small"
+                      type="number"
+                      placeholder="Stock"
+                      min="0"
+                      value={medStock}
+                      onChange={e => setMedStock(e.target.value)}
+                    />
+                  )}
                   <button className="btn btn-primary" onClick={() => handleCreateMedicine(cat.id)}>
                     Add Medicine
                   </button>
@@ -291,23 +315,25 @@ const Settings = ({ data, onRefresh }) => {
                           onChange={e => setEditMedName(e.target.value)}
                           onKeyDown={e => e.key === 'Enter' && handleUpdateMedicine(cat.id, med.id)}
                         />
-                        <div className="stock-editor">
-                          <button
-                            className="stock-btn"
-                            onClick={() => setEditMedStock(String(Math.max(0, parseInt(editMedStock) - 1)))}
-                          >-</button>
-                          <input
-                            className="form-input form-input-small"
-                            type="number"
-                            min="0"
-                            value={editMedStock}
-                            onChange={e => setEditMedStock(e.target.value)}
-                          />
-                          <button
-                            className="stock-btn"
-                            onClick={() => setEditMedStock(String(parseInt(editMedStock) + 1))}
-                          >+</button>
-                        </div>
+                        {data.stockEnabled && (
+                          <div className="stock-editor">
+                            <button
+                              className="stock-btn"
+                              onClick={() => setEditMedStock(String(Math.max(0, parseInt(editMedStock) - 1)))}
+                            >-</button>
+                            <input
+                              className="form-input form-input-small"
+                              type="number"
+                              min="0"
+                              value={editMedStock}
+                              onChange={e => setEditMedStock(e.target.value)}
+                            />
+                            <button
+                              className="stock-btn"
+                              onClick={() => setEditMedStock(String(parseInt(editMedStock) + 1))}
+                            >+</button>
+                          </div>
+                        )}
                         <div className="edit-actions">
                           <button className="btn btn-save" onClick={() => handleUpdateMedicine(cat.id, med.id)}>Save</button>
                           <button className="btn btn-cancel" onClick={() => setEditingMed(null)}>Cancel</button>
@@ -317,7 +343,9 @@ const Settings = ({ data, onRefresh }) => {
                       <div className="med-row">
                         <div className="med-info" onClick={() => startEditMedicine(med)}>
                           <span className="med-label">{med.name}</span>
-                          <span className="med-stock-badge">{med.stock} left</span>
+                          {data.stockEnabled && (
+                            <span className="med-stock-badge">{med.stock} left</span>
+                          )}
                         </div>
                         <div className="med-actions">
                           <button
@@ -388,6 +416,10 @@ const Settings = ({ data, onRefresh }) => {
           onChange={handleImport}
         />
         {importStatus && <p className="import-status">{importStatus}</p>}
+      </section>
+
+      <section className="settings-section settings-credit">
+        <p className="credit-text">Developed by Rehan Sarwar</p>
       </section>
 
       {popup && (

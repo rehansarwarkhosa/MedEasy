@@ -10,7 +10,16 @@ const BottomNav = ({ activeTab, onTabChange }) => {
           <rect x="9" y="3" width="6" height="4" rx="1" />
           <path d="M9 14l2 2 4-4" />
         </svg>
-        <span className="nav-label">My Medicines</span>
+        <span className="nav-label">Medicines</span>
+      </button>
+      <button
+        className={`nav-btn ${activeTab === 'health' ? 'active' : ''}`}
+        onClick={() => onTabChange('health')}
+      >
+        <svg viewBox="0 0 24 24" className="nav-icon" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+        </svg>
+        <span className="nav-label">Health Log</span>
       </button>
       <button
         className={`nav-btn ${activeTab === 'settings' ? 'active' : ''}`}
