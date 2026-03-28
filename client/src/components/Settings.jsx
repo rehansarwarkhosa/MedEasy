@@ -1,0 +1,404 @@
+import { useState, useRef } from 'react';
+import {
+  createCategory,
+  updateCategory,
+  deleteCategory,
+  reorderCategories,
+  createMedicine,
+  updateMedicine,
+  deleteMedicine,
+  reorderMedicines,
+  exportData,
+  importData
+} from '../api';
+import ConfirmPopup from './ConfirmPopup';
+
+const PRESET_COLORS = [
+  '#E74C3C', '#E67E22', '#F1C40F', '#2ECC71',
+  '#1ABC9C', '#3498DB', '#9B59B6', '#E91E63',
+  '#00BCD4', '#8BC34A', '#FF5722', '#607D8B'
+];
+
+const Settings = ({ data, onRefresh }) => {
+  const [catName, setCatName] = useState('');
+  const [catColor, setCatColor] = useState(PRESET_COLORS[0]);
+  const [editingCat, setEditingCat] = useState(null);
+  const [editCatName, setEditCatName] = useState('');
+  const [editCatColor, setEditCatColor] = useState('');
+  const [expandedCat, setExpandedCat] = useState(null);
+  const [medName, setMedName] = useState('');
+  const [medStock, setMedStock] = useState('');
+  const [editingMed, setEditingMed] = useState(null);
+  const [editMedName, setEditMedName] = useState('');
+  const [editMedStock, setEditMedStock] = useState('');
+  const [popup, setPopup] = useState(null);
+  const [importStatus, setImportStatus] = useState('');
+  const fileInputRef = useRef(null);
+
+  const sortedCategories = [...data.categories].sort((a, b) => a.order - b.order);
+
+  const handleCreateCategory = async () => {
+    if (!catName.trim()) return;
+    await createCategory(catName.trim(), catColor);
+    setCatName('');
+    setCatColor(PRESET_COLORS[0]);
+    await onRefresh();
+  };
+
+  const handleUpdateCategory = async (id) => {
+    if (!editCatName.trim()) return;
+    await updateCategory(id, { name: editCatName.trim(), color: editCatColor });
+    setEditingCat(null);
+    await onRefresh();
+  };
+
+  const handleDeleteCategory = (id, name) => {
+    setPopup({
+      message: `Delete category "${name}" and all its medicines?`,
+      onYes: async () => {
+        await deleteCategory(id);
+        setPopup(null);
+        if (expandedCat === id) setExpandedCat(null);
+        await onRefresh();
+      }
+    });
+  };
+
+  const handleMoveCat = async (index, direction) => {
+    const newIndex = index + direction;
+    if (newIndex < 0 || newIndex >= sortedCategories.length) return;
+    const ids = sortedCategories.map(c => c.id);
+    [ids[index], ids[newIndex]] = [ids[newIndex], ids[index]];
+    await reorderCategories(ids);
+    await onRefresh();
+  };
+
+  const handleCreateMedicine = async (categoryId) => {
+    if (!medName.trim() || medStock === '') return;
+    await createMedicine(categoryId, medName.trim(), parseInt(medStock) || 0);
+    setMedName('');
+    setMedStock('');
+    await onRefresh();
+  };
+
+  const startEditMedicine = (med) => {
+    setEditingMed(med.id);
+    setEditMedName(med.name);
+    setEditMedStock(String(med.stock));
+  };
+
+  const handleUpdateMedicine = async (categoryId, medicineId) => {
+    if (!editMedName.trim()) return;
+    await updateMedicine(categoryId, medicineId, {
+      name: editMedName.trim(),
+      stock: parseInt(editMedStock) || 0
+    });
+    setEditingMed(null);
+    await onRefresh();
+  };
+
+  const handleDeleteMedicine = (categoryId, medicineId, name) => {
+    setPopup({
+      message: `Delete medicine "${name}"?`,
+      onYes: async () => {
+        await deleteMedicine(categoryId, medicineId);
+        setPopup(null);
+        await onRefresh();
+      }
+    });
+  };
+
+  const handleMoveMed = async (categoryId, medicines, index, direction) => {
+    const sorted = [...medicines].sort((a, b) => a.order - b.order);
+    const newIndex = index + direction;
+    if (newIndex < 0 || newIndex >= sorted.length) return;
+    const ids = sorted.map(m => m.id);
+    [ids[index], ids[newIndex]] = [ids[newIndex], ids[index]];
+    await reorderMedicines(categoryId, ids);
+    await onRefresh();
+  };
+
+  const handleExport = () => {
+    exportData();
+  };
+
+  const handleImport = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      await importData(file);
+      setImportStatus('Data restored successfully!');
+      await onRefresh();
+    } catch {
+      setImportStatus('Failed to import data. Please check the file.');
+    }
+    fileInputRef.current.value = '';
+    setTimeout(() => setImportStatus(''), 3000);
+  };
+
+  return (
+    <div className="settings">
+      <section className="settings-section">
+        <h2 className="section-title">Add New Category</h2>
+        <div className="form-group">
+          <input
+            className="form-input"
+            type="text"
+            placeholder="Category name (e.g. Morning)"
+            value={catName}
+            onChange={e => setCatName(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleCreateCategory()}
+          />
+          <div className="color-picker">
+            {PRESET_COLORS.map(color => (
+              <button
+                key={color}
+                className={`color-dot ${catColor === color ? 'selected' : ''}`}
+                style={{ backgroundColor: color }}
+                onClick={() => setCatColor(color)}
+              />
+            ))}
+          </div>
+          <button className="btn btn-primary" onClick={handleCreateCategory}>
+            Add Category
+          </button>
+        </div>
+      </section>
+
+      <section className="settings-section">
+        <h2 className="section-title">Manage Categories</h2>
+        {sortedCategories.length === 0 && (
+          <p className="empty-message">No categories yet. Create one above.</p>
+        )}
+        {sortedCategories.map((cat, catIndex) => (
+          <div key={cat.id} className="manage-category">
+            <div className="manage-cat-header" style={{ borderLeftColor: cat.color }}>
+              {editingCat === cat.id ? (
+                <div className="edit-cat-form">
+                  <input
+                    className="form-input"
+                    value={editCatName}
+                    onChange={e => setEditCatName(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleUpdateCategory(cat.id)}
+                  />
+                  <div className="color-picker">
+                    {PRESET_COLORS.map(color => (
+                      <button
+                        key={color}
+                        className={`color-dot ${editCatColor === color ? 'selected' : ''}`}
+                        style={{ backgroundColor: color }}
+                        onClick={() => setEditCatColor(color)}
+                      />
+                    ))}
+                  </div>
+                  <div className="edit-actions">
+                    <button className="btn btn-save" onClick={() => handleUpdateCategory(cat.id)}>Save</button>
+                    <button className="btn btn-cancel" onClick={() => setEditingCat(null)}>Cancel</button>
+                  </div>
+                </div>
+              ) : (
+                <div className="cat-row">
+                  <div className="cat-info" onClick={() => setExpandedCat(expandedCat === cat.id ? null : cat.id)}>
+                    <span className="cat-color-badge" style={{ backgroundColor: cat.color }} />
+                    <span className="cat-label">{cat.name}</span>
+                    <span className="cat-med-count">({cat.medicines.length})</span>
+                    <span className={`cat-expand-icon ${expandedCat === cat.id ? 'expanded' : ''}`}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" width="20" height="20">
+                        <path d="M6 9l6 6 6-6" />
+                      </svg>
+                    </span>
+                  </div>
+                  <div className="cat-actions">
+                    <button
+                      className="icon-btn"
+                      onClick={() => handleMoveCat(catIndex, -1)}
+                      disabled={catIndex === 0}
+                      title="Move up"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" width="22" height="22">
+                        <path d="M18 15l-6-6-6 6" />
+                      </svg>
+                    </button>
+                    <button
+                      className="icon-btn"
+                      onClick={() => handleMoveCat(catIndex, 1)}
+                      disabled={catIndex === sortedCategories.length - 1}
+                      title="Move down"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" width="22" height="22">
+                        <path d="M6 9l6 6 6-6" />
+                      </svg>
+                    </button>
+                    <button
+                      className="icon-btn"
+                      onClick={() => {
+                        setEditingCat(cat.id);
+                        setEditCatName(cat.name);
+                        setEditCatColor(cat.color);
+                      }}
+                      title="Edit"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="22" height="22">
+                        <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                        <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                      </svg>
+                    </button>
+                    <button
+                      className="icon-btn icon-btn-danger"
+                      onClick={() => handleDeleteCategory(cat.id, cat.name)}
+                      title="Delete"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="22" height="22">
+                        <path d="M3 6h18" />
+                        <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {expandedCat === cat.id && (
+              <div className="manage-medicines">
+                <div className="add-medicine-form">
+                  <input
+                    className="form-input"
+                    type="text"
+                    placeholder="Medicine name"
+                    value={medName}
+                    onChange={e => setMedName(e.target.value)}
+                  />
+                  <input
+                    className="form-input form-input-small"
+                    type="number"
+                    placeholder="Stock"
+                    min="0"
+                    value={medStock}
+                    onChange={e => setMedStock(e.target.value)}
+                  />
+                  <button className="btn btn-primary" onClick={() => handleCreateMedicine(cat.id)}>
+                    Add Medicine
+                  </button>
+                </div>
+
+                {[...cat.medicines].sort((a, b) => a.order - b.order).map((med, medIndex) => (
+                  <div key={med.id} className="manage-med-row">
+                    {editingMed === med.id ? (
+                      <div className="edit-med-form">
+                        <input
+                          className="form-input"
+                          value={editMedName}
+                          onChange={e => setEditMedName(e.target.value)}
+                          onKeyDown={e => e.key === 'Enter' && handleUpdateMedicine(cat.id, med.id)}
+                        />
+                        <div className="stock-editor">
+                          <button
+                            className="stock-btn"
+                            onClick={() => setEditMedStock(String(Math.max(0, parseInt(editMedStock) - 1)))}
+                          >-</button>
+                          <input
+                            className="form-input form-input-small"
+                            type="number"
+                            min="0"
+                            value={editMedStock}
+                            onChange={e => setEditMedStock(e.target.value)}
+                          />
+                          <button
+                            className="stock-btn"
+                            onClick={() => setEditMedStock(String(parseInt(editMedStock) + 1))}
+                          >+</button>
+                        </div>
+                        <div className="edit-actions">
+                          <button className="btn btn-save" onClick={() => handleUpdateMedicine(cat.id, med.id)}>Save</button>
+                          <button className="btn btn-cancel" onClick={() => setEditingMed(null)}>Cancel</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="med-row">
+                        <div className="med-info" onClick={() => startEditMedicine(med)}>
+                          <span className="med-label">{med.name}</span>
+                          <span className="med-stock-badge">{med.stock} left</span>
+                        </div>
+                        <div className="med-actions">
+                          <button
+                            className="icon-btn"
+                            onClick={() => handleMoveMed(cat.id, cat.medicines, medIndex, -1)}
+                            disabled={medIndex === 0}
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" width="20" height="20">
+                              <path d="M18 15l-6-6-6 6" />
+                            </svg>
+                          </button>
+                          <button
+                            className="icon-btn"
+                            onClick={() => handleMoveMed(cat.id, cat.medicines, medIndex, 1)}
+                            disabled={medIndex === cat.medicines.length - 1}
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" width="20" height="20">
+                              <path d="M6 9l6 6 6-6" />
+                            </svg>
+                          </button>
+                          <button
+                            className="icon-btn icon-btn-danger"
+                            onClick={() => handleDeleteMedicine(cat.id, med.id, med.name)}
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
+                              <path d="M3 6h18" />
+                              <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {cat.medicines.length === 0 && (
+                  <p className="empty-message">No medicines in this category</p>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+      </section>
+
+      <section className="settings-section">
+        <h2 className="section-title">Backup & Restore</h2>
+        <button className="btn btn-export" onClick={handleExport}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="24" height="24">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+            <path d="M7 10l5 5 5-5" />
+            <path d="M12 15V3" />
+          </svg>
+          Export Data
+        </button>
+        <button className="btn btn-import" onClick={() => fileInputRef.current.click()}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="24" height="24">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+            <path d="M17 8l-5-5-5 5" />
+            <path d="M12 3v12" />
+          </svg>
+          Import Data
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".json"
+          style={{ display: 'none' }}
+          onChange={handleImport}
+        />
+        {importStatus && <p className="import-status">{importStatus}</p>}
+      </section>
+
+      {popup && (
+        <ConfirmPopup
+          message={popup.message}
+          onYes={popup.onYes}
+          onNo={() => setPopup(null)}
+        />
+      )}
+    </div>
+  );
+};
+
+export default Settings;
