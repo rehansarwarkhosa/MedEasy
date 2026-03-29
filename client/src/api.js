@@ -37,10 +37,10 @@ export const reorderCategories = (orderedIds) =>
     body: JSON.stringify({ orderedIds })
   });
 
-export const createMedicine = (categoryId, name, stock) =>
+export const createMedicine = (categoryId, name, stock, showFrom, showTo) =>
   request(`/categories/${categoryId}/medicines`, {
     method: 'POST',
-    body: JSON.stringify({ name, stock })
+    body: JSON.stringify({ name, stock, showFrom, showTo })
   });
 
 export const updateMedicine = (categoryId, medicineId, updates) =>

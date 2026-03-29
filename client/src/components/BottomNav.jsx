@@ -10,7 +10,17 @@ const BottomNav = ({ activeTab, onTabChange }) => {
           <rect x="9" y="3" width="6" height="4" rx="1" />
           <path d="M9 14l2 2 4-4" />
         </svg>
-        <span className="nav-label">Medicines</span>
+        <span className="nav-label">Now</span>
+      </button>
+      <button
+        className={`nav-btn ${activeTab === 'history' ? 'active' : ''}`}
+        onClick={() => onTabChange('history')}
+      >
+        <svg viewBox="0 0 24 24" className="nav-icon" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="12" cy="12" r="10" />
+          <path d="M12 6v6l4 2" />
+        </svg>
+        <span className="nav-label">History</span>
       </button>
       <button
         className={`nav-btn ${activeTab === 'health' ? 'active' : ''}`}
@@ -19,7 +29,7 @@ const BottomNav = ({ activeTab, onTabChange }) => {
         <svg viewBox="0 0 24 24" className="nav-icon" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
         </svg>
-        <span className="nav-label">Health Log</span>
+        <span className="nav-label">Health</span>
       </button>
       <button
         className={`nav-btn ${activeTab === 'settings' ? 'active' : ''}`}

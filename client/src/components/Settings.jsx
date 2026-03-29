@@ -20,6 +20,49 @@ const PRESET_COLORS = [
   '#00BCD4', '#8BC34A', '#FF5722', '#607D8B'
 ];
 
+const formatTime12 = (time24) => {
+  if (!time24) return '';
+  const [h, m] = time24.split(':').map(Number);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const hour = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return `${hour}:${String(m).padStart(2, '0')} ${ampm}`;
+};
+
+const incrementTime = (time) => {
+  let [h, m] = time.split(':').map(Number);
+  m += 30;
+  if (m >= 60) { m = 0; h += 1; }
+  if (h >= 24) h = 0;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+};
+
+const decrementTime = (time) => {
+  let [h, m] = time.split(':').map(Number);
+  m -= 30;
+  if (m < 0) { m = 30; h -= 1; }
+  if (h < 0) h = 23;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+};
+
+const TimePicker = ({ label, value, onChange }) => (
+  <div className="time-picker">
+    <label className="time-picker-label">{label}</label>
+    <div className="time-picker-controls">
+      <button className="time-picker-btn" type="button" onClick={() => onChange(decrementTime(value))}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" width="24" height="24">
+          <path d="M5 12h14" />
+        </svg>
+      </button>
+      <span className="time-picker-display">{formatTime12(value)}</span>
+      <button className="time-picker-btn" type="button" onClick={() => onChange(incrementTime(value))}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" width="24" height="24">
+          <path d="M12 5v14M5 12h14" />
+        </svg>
+      </button>
+    </div>
+  </div>
+);
+
 const Settings = ({ data, onRefresh }) => {
   const [catName, setCatName] = useState('');
   const [catColor, setCatColor] = useState(PRESET_COLORS[0]);
@@ -29,9 +72,13 @@ const Settings = ({ data, onRefresh }) => {
   const [expandedCat, setExpandedCat] = useState(null);
   const [medName, setMedName] = useState('');
   const [medStock, setMedStock] = useState('');
+  const [medShowFrom, setMedShowFrom] = useState('08:00');
+  const [medShowTo, setMedShowTo] = useState('09:00');
   const [editingMed, setEditingMed] = useState(null);
   const [editMedName, setEditMedName] = useState('');
   const [editMedStock, setEditMedStock] = useState('');
+  const [editMedShowFrom, setEditMedShowFrom] = useState('08:00');
+  const [editMedShowTo, setEditMedShowTo] = useState('09:00');
   const [popup, setPopup] = useState(null);
   const [importStatus, setImportStatus] = useState('');
   const fileInputRef = useRef(null);
@@ -82,9 +129,24 @@ const Settings = ({ data, onRefresh }) => {
   const handleCreateMedicine = async (categoryId) => {
     if (!medName.trim()) return;
     if (data.stockEnabled && medStock === '') return;
-    await createMedicine(categoryId, medName.trim(), data.stockEnabled ? (parseInt(medStock) || 0) : 0);
+    if (medShowFrom >= medShowTo) {
+      setPopup({
+        message: 'The "Show From" time must be before the "Show Until" time.',
+        onYes: () => setPopup(null)
+      });
+      return;
+    }
+    await createMedicine(
+      categoryId,
+      medName.trim(),
+      data.stockEnabled ? (parseInt(medStock) || 0) : 0,
+      medShowFrom,
+      medShowTo
+    );
     setMedName('');
     setMedStock('');
+    setMedShowFrom('08:00');
+    setMedShowTo('09:00');
     await onRefresh();
   };
 
@@ -92,11 +154,24 @@ const Settings = ({ data, onRefresh }) => {
     setEditingMed(med.id);
     setEditMedName(med.name);
     setEditMedStock(String(med.stock));
+    setEditMedShowFrom(med.showFrom || '08:00');
+    setEditMedShowTo(med.showTo || '09:00');
   };
 
   const handleUpdateMedicine = async (categoryId, medicineId) => {
     if (!editMedName.trim()) return;
-    const updates = { name: editMedName.trim() };
+    if (editMedShowFrom >= editMedShowTo) {
+      setPopup({
+        message: 'The "Show From" time must be before the "Show Until" time.',
+        onYes: () => setPopup(null)
+      });
+      return;
+    }
+    const updates = {
+      name: editMedName.trim(),
+      showFrom: editMedShowFrom,
+      showTo: editMedShowTo
+    };
     if (data.stockEnabled) updates.stock = parseInt(editMedStock) || 0;
     await updateMedicine(categoryId, medicineId, updates);
     setEditingMed(null);
@@ -300,6 +375,10 @@ const Settings = ({ data, onRefresh }) => {
                       onChange={e => setMedStock(e.target.value)}
                     />
                   )}
+                  <div className="time-pickers-row">
+                    <TimePicker label="Show From" value={medShowFrom} onChange={setMedShowFrom} />
+                    <TimePicker label="Show Until" value={medShowTo} onChange={setMedShowTo} />
+                  </div>
                   <button className="btn btn-primary" onClick={() => handleCreateMedicine(cat.id)}>
                     Add Medicine
                   </button>
@@ -334,6 +413,10 @@ const Settings = ({ data, onRefresh }) => {
                             >+</button>
                           </div>
                         )}
+                        <div className="time-pickers-row">
+                          <TimePicker label="Show From" value={editMedShowFrom} onChange={setEditMedShowFrom} />
+                          <TimePicker label="Show Until" value={editMedShowTo} onChange={setEditMedShowTo} />
+                        </div>
                         <div className="edit-actions">
                           <button className="btn btn-save" onClick={() => handleUpdateMedicine(cat.id, med.id)}>Save</button>
                           <button className="btn btn-cancel" onClick={() => setEditingMed(null)}>Cancel</button>
@@ -342,7 +425,12 @@ const Settings = ({ data, onRefresh }) => {
                     ) : (
                       <div className="med-row">
                         <div className="med-info" onClick={() => startEditMedicine(med)}>
-                          <span className="med-label">{med.name}</span>
+                          <div className="med-info-main">
+                            <span className="med-label">{med.name}</span>
+                            <span className="med-time-badge">
+                              {formatTime12(med.showFrom)} - {formatTime12(med.showTo)}
+                            </span>
+                          </div>
                           {data.stockEnabled && (
                             <span className="med-stock-badge">{med.stock} left</span>
                           )}
@@ -426,7 +514,7 @@ const Settings = ({ data, onRefresh }) => {
         <ConfirmPopup
           message={popup.message}
           onYes={popup.onYes}
-          onNo={() => setPopup(null)}
+          onNo={popup.onNo || (() => setPopup(null))}
         />
       )}
     </div>

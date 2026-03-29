@@ -12,9 +12,6 @@ const CategorySection = ({ category, stockEnabled, onToggle }) => {
         </span>
       </div>
       <div className="category-medicines">
-        {sortedMedicines.length === 0 && (
-          <p className="empty-message">No medicines added yet</p>
-        )}
         {sortedMedicines.map(med => (
           <MedicineCard
             key={med.id}
