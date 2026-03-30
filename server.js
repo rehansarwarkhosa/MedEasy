@@ -17,9 +17,9 @@ const DATA_DIR = process.env.RENDER ? '/opt/render/data' : join(__dirname, 'data
 const DATA_FILE = join(DATA_DIR, 'data.json');
 const upload = multer({ storage: multer.memoryStorage() });
 
-// OneSignal credentials
-const ONESIGNAL_APP_ID = process.env.ONESIGNAL_APP_ID || 'e760add4-350f-4656-9cf5-ea624f038b39';
-const ONESIGNAL_API_KEY = process.env.ONESIGNAL_API_KEY || 'os_v2_app_45qk3vbvb5dfnhhv5jre6a4lhhtlaimyuypuvg46fnxvrnxdp545zifrirzdwnvbsof4tqm35abomuaqv3hcmjnkujz7bxxyjyez3zy';
+// OneSignal credentials - set these as environment variables on Render
+const ONESIGNAL_APP_ID = process.env.ONESIGNAL_APP_ID || '';
+const ONESIGNAL_API_KEY = process.env.ONESIGNAL_API_KEY || '';
 
 app.use(express.json());
 
@@ -397,19 +397,22 @@ app.post('/api/import', upload.single('file'), (req, res) => {
 app.post('/api/notifications/test', async (req, res) => {
   const { subscriptionId } = req.body;
   const targets = subscriptionId ? [subscriptionId] : null;
-  console.log('Test notification request - subscriptionId:', subscriptionId);
-  console.log('Using API key prefix:', ONESIGNAL_API_KEY.substring(0, 20) + '...');
-  console.log('Using App ID:', ONESIGNAL_APP_ID);
+  if (!ONESIGNAL_API_KEY || !ONESIGNAL_APP_ID) {
+    return res.json({ success: false, result: { errors: ['ONESIGNAL_APP_ID and ONESIGNAL_API_KEY environment variables not set on server'] } });
+  }
   const result = await sendOneSignalNotification(
     'MedEasy Test',
     'Push notifications are working correctly!',
     targets
   );
   const success = result && !result.errors && !result.error && result.httpStatus >= 200 && result.httpStatus < 300;
-  res.json({ success, result, debug: { appId: ONESIGNAL_APP_ID, keyPrefix: ONESIGNAL_API_KEY.substring(0, 20) } });
+  res.json({ success, result });
 });
 
 app.get('/api/cron/notifications', async (_req, res) => {
+  if (!ONESIGNAL_API_KEY || !ONESIGNAL_APP_ID) {
+    return res.json({ sent: 0, message: 'OneSignal env vars not configured' });
+  }
   const data = readData();
   if (!data.notificationsEnabled) {
     return res.json({ sent: 0, message: 'Notifications disabled' });
