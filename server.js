@@ -166,16 +166,16 @@ const sendOneSignalNotification = async (headings, contents, subscriptionIds = n
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Key ${ONESIGNAL_API_KEY}`,
+        'Authorization': `Bearer ${ONESIGNAL_API_KEY}`,
       },
       body: JSON.stringify(body),
     });
     const result = await response.json();
-    console.log('OneSignal response:', JSON.stringify(result));
-    return result;
+    console.log('OneSignal response:', response.status, JSON.stringify(result));
+    return { ...result, httpStatus: response.status };
   } catch (err) {
-    console.error('OneSignal notification error:', err);
-    return null;
+    console.error('OneSignal notification error:', err.message);
+    return { error: err.message };
   }
 };
 
@@ -402,7 +402,8 @@ app.post('/api/notifications/test', async (req, res) => {
     'Push notifications are working correctly!',
     targets
   );
-  res.json({ success: !!result && !result.errors, result });
+  const success = result && !result.errors && !result.error && result.httpStatus >= 200 && result.httpStatus < 300;
+  res.json({ success, result });
 });
 
 app.get('/api/cron/notifications', async (_req, res) => {

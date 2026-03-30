@@ -152,11 +152,16 @@ const Settings = ({ data, onRefresh }) => {
         // Continue without subscription ID
       }
       const result = await sendTestNotification(subId);
-      setNotifTestStatus(result.success ? 'Test notification sent!' : 'Failed to send. Check permissions.');
-    } catch {
-      setNotifTestStatus('Error sending test notification.');
+      if (result.success) {
+        setNotifTestStatus('Test notification sent!');
+      } else {
+        const err = result.result?.errors || result.result?.error || 'Unknown error';
+        setNotifTestStatus(`Failed: ${typeof err === 'object' ? JSON.stringify(err) : err}`);
+      }
+    } catch (e) {
+      setNotifTestStatus(`Error: ${e.message}`);
     }
-    setTimeout(() => setNotifTestStatus(''), 4000);
+    setTimeout(() => setNotifTestStatus(''), 8000);
   };
 
   const handleCreateCategory = async () => {
