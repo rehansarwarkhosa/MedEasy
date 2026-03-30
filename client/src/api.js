@@ -86,3 +86,9 @@ export const importData = async (file) => {
   });
   return res.json();
 };
+
+export const sendTestNotification = (subscriptionId) =>
+  request('/notifications/test', {
+    method: 'POST',
+    body: JSON.stringify({ subscriptionId })
+  });

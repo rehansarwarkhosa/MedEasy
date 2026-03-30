@@ -11,9 +11,15 @@ const __dirname = dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const DATA_DIR = join(__dirname, 'data');
+
+// Use persistent disk on Render so data survives deploys, local data dir otherwise
+const DATA_DIR = process.env.RENDER ? '/opt/render/data' : join(__dirname, 'data');
 const DATA_FILE = join(DATA_DIR, 'data.json');
 const upload = multer({ storage: multer.memoryStorage() });
+
+// OneSignal credentials
+const ONESIGNAL_APP_ID = process.env.ONESIGNAL_APP_ID || 'e760add4-350f-4656-9cf5-ea624f038b39';
+const ONESIGNAL_API_KEY = process.env.ONESIGNAL_API_KEY || 'os_v2_app_45qk3vbvb5dfnhhv5jre6a4lhhtlaimyuypuvg46fnxvrnxdp545zifrirzdwnvbsof4tqm35abomuaqv3hcmjnkujz7bxxyjyez3zy';
 
 app.use(express.json());
 
@@ -26,7 +32,9 @@ const getDefaultData = () => ({
   healthLogs: [],
   medicineHistory: [],
   lastResetDate: '',
-  stockEnabled: false
+  stockEnabled: false,
+  notificationsEnabled: false,
+  notificationsSent: []
 });
 
 const readData = () => {
@@ -40,6 +48,8 @@ const readData = () => {
     if (!raw.healthLogs) raw.healthLogs = [];
     if (!raw.medicineHistory) raw.medicineHistory = [];
     if (raw.stockEnabled === undefined) raw.stockEnabled = false;
+    if (raw.notificationsEnabled === undefined) raw.notificationsEnabled = false;
+    if (!raw.notificationsSent) raw.notificationsSent = [];
     // Migrate medicines without time windows
     if (raw.categories) {
       raw.categories.forEach(cat => {
@@ -77,6 +87,14 @@ const getPKDateTime = () => {
 
 const getTodayPK = () => getPKDateTime().date;
 
+const formatTime12 = (time24) => {
+  if (!time24) return '';
+  const [h, m] = time24.split(':').map(Number);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const hour = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return `${hour}:${String(m).padStart(2, '0')} ${ampm}`;
+};
+
 const resetDailyStatuses = () => {
   const data = readData();
   const today = getTodayPK();
@@ -113,6 +131,8 @@ const resetDailyStatuses = () => {
       });
     });
     data.lastResetDate = today;
+    // Clear notification sent log for new day
+    data.notificationsSent = [];
     saveData(data);
   }
 };
@@ -127,6 +147,40 @@ cron.schedule('*/5 * * * *', () => {
   resetDailyStatuses();
 });
 
+// ========== OneSignal Helper ==========
+
+const sendOneSignalNotification = async (headings, contents, subscriptionIds = null) => {
+  const body = {
+    app_id: ONESIGNAL_APP_ID,
+    headings: { en: headings },
+    contents: { en: contents },
+  };
+  if (subscriptionIds && subscriptionIds.length > 0) {
+    body.include_subscription_ids = subscriptionIds;
+  } else {
+    body.included_segments = ['Subscribed Users'];
+  }
+
+  try {
+    const response = await fetch('https://api.onesignal.com/notifications', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Key ${ONESIGNAL_API_KEY}`,
+      },
+      body: JSON.stringify(body),
+    });
+    const result = await response.json();
+    console.log('OneSignal response:', JSON.stringify(result));
+    return result;
+  } catch (err) {
+    console.error('OneSignal notification error:', err);
+    return null;
+  }
+};
+
+// ========== API Routes ==========
+
 app.get('/api/data', (_req, res) => {
   resetDailyStatuses();
   res.json(readData());
@@ -140,8 +194,9 @@ app.put('/api/data', (req, res) => {
 
 app.put('/api/settings', (req, res) => {
   const data = readData();
-  const { stockEnabled } = req.body;
+  const { stockEnabled, notificationsEnabled } = req.body;
   if (stockEnabled !== undefined) data.stockEnabled = stockEnabled;
+  if (notificationsEnabled !== undefined) data.notificationsEnabled = notificationsEnabled;
   saveData(data);
   res.json(data);
 });
@@ -318,6 +373,8 @@ app.post('/api/import', upload.single('file'), (req, res) => {
     if (!imported.healthLogs) imported.healthLogs = [];
     if (!imported.medicineHistory) imported.medicineHistory = [];
     if (imported.stockEnabled === undefined) imported.stockEnabled = false;
+    if (imported.notificationsEnabled === undefined) imported.notificationsEnabled = false;
+    if (!imported.notificationsSent) imported.notificationsSent = [];
     imported.lastResetDate = imported.lastResetDate || '';
     // Migrate medicines without time windows
     imported.categories.forEach(cat => {
@@ -334,6 +391,113 @@ app.post('/api/import', upload.single('file'), (req, res) => {
     res.status(400).json({ error: 'Invalid JSON file' });
   }
 });
+
+// ========== Push Notification Endpoints ==========
+
+app.post('/api/notifications/test', async (req, res) => {
+  const { subscriptionId } = req.body;
+  const targets = subscriptionId ? [subscriptionId] : null;
+  const result = await sendOneSignalNotification(
+    'MedEasy Test',
+    'Push notifications are working correctly!',
+    targets
+  );
+  res.json({ success: !!result && !result.errors, result });
+});
+
+app.get('/api/cron/notifications', async (_req, res) => {
+  const data = readData();
+  if (!data.notificationsEnabled) {
+    return res.json({ sent: 0, message: 'Notifications disabled' });
+  }
+
+  if (!data.categories || data.categories.length === 0) {
+    return res.json({ sent: 0, message: 'No medicines configured' });
+  }
+
+  const { date, time: currentTime } = getPKDateTime();
+  const [currentH, currentM] = currentTime.split(':').map(Number);
+  const currentMinutes = currentH * 60 + currentM;
+
+  // Clean old sent records (keep only today)
+  data.notificationsSent = data.notificationsSent.filter(s => s.date === date);
+
+  // Group medicines by (showFrom, showTo) pair
+  const groups = {};
+  data.categories.forEach(cat => {
+    cat.medicines.forEach(med => {
+      const key = `${med.showFrom}_${med.showTo}`;
+      if (!groups[key]) {
+        groups[key] = { showFrom: med.showFrom, showTo: med.showTo, medicines: [] };
+      }
+      groups[key].medicines.push({ name: med.name, taken: med.taken });
+    });
+  });
+
+  const sentKeys = data.notificationsSent.map(s => s.key);
+  const notifications = [];
+
+  for (const [key, group] of Object.entries(groups)) {
+    const [fromH, fromM] = group.showFrom.split(':').map(Number);
+    const fromMinutes = fromH * 60 + fromM;
+    const [toH, toM] = group.showTo.split(':').map(Number);
+    const toMinutes = toH * 60 + toM;
+
+    // START notification: send when current time is within 10 min of showFrom
+    const startKey = `start_${key}`;
+    if (
+      currentMinutes >= fromMinutes &&
+      currentMinutes <= fromMinutes + 10 &&
+      currentMinutes <= toMinutes &&
+      !sentKeys.includes(startKey)
+    ) {
+      const medNames = group.medicines.map(m => m.name).join(', ');
+      const timeRange = `${formatTime12(group.showFrom)} - ${formatTime12(group.showTo)}`;
+      notifications.push({
+        headings: 'Time for your medicine!',
+        contents: `Take: ${medNames} (${timeRange})`,
+        sentKey: startKey
+      });
+    }
+
+    // END REMINDER: 10 minutes before showTo, only for untaken medicines
+    const reminderKey = `reminder_${key}`;
+    const reminderMinutes = toMinutes - 10;
+    if (
+      reminderMinutes > fromMinutes &&
+      currentMinutes >= reminderMinutes &&
+      currentMinutes <= toMinutes &&
+      !sentKeys.includes(reminderKey)
+    ) {
+      const untaken = group.medicines.filter(m => !m.taken);
+      if (untaken.length > 0) {
+        const medNames = untaken.map(m => m.name).join(', ');
+        notifications.push({
+          headings: 'Medicine Reminder!',
+          contents: `Don't forget to take: ${medNames} before ${formatTime12(group.showTo)}`,
+          sentKey: reminderKey
+        });
+      }
+    }
+  }
+
+  let sentCount = 0;
+  for (const notif of notifications) {
+    const result = await sendOneSignalNotification(notif.headings, notif.contents);
+    if (result && !result.errors) {
+      data.notificationsSent.push({ date, key: notif.sentKey });
+      sentCount++;
+    }
+  }
+
+  if (sentCount > 0 || data.notificationsSent.length > 0) {
+    saveData(data);
+  }
+
+  res.json({ sent: sentCount, checked: Object.keys(groups).length, time: currentTime, date });
+});
+
+// ========== Static Files ==========
 
 const clientBuild = join(__dirname, 'client', 'dist');
 if (existsSync(clientBuild)) {

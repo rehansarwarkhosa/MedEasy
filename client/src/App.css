@@ -933,6 +933,69 @@ input {
   margin-top: 8px;
 }
 
+/* ========== Push Notifications ========== */
+
+.notif-status-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 12px 16px;
+  background: #FAFAFA;
+  border-radius: 12px;
+  border: 2px solid #F0EBE3;
+}
+
+.notif-status-label {
+  font-size: 17px;
+  font-weight: 700;
+  color: #555;
+}
+
+.notif-status-badge {
+  font-size: 16px;
+  font-weight: 800;
+  padding: 4px 14px;
+  border-radius: 10px;
+}
+
+.notif-status-badge.active {
+  background: #E8F8EF;
+  color: #27AE60;
+}
+
+.notif-status-badge.inactive {
+  background: #FDECEC;
+  color: #E74C3C;
+}
+
+.notif-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.btn-notif-register {
+  background: #E67E22;
+  color: #fff;
+  width: 100%;
+}
+
+.btn-notif-test {
+  background: #3498DB;
+  color: #fff;
+  width: 100%;
+}
+
+.notif-test-status {
+  text-align: center;
+  font-size: 16px;
+  font-weight: 700;
+  color: #27AE60;
+  margin-top: 10px;
+}
+
 .settings-credit {
   text-align: center;
   background: transparent;

@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   createCategory,
   updateCategory,
@@ -10,7 +10,8 @@ import {
   reorderMedicines,
   updateSettings,
   exportData,
-  importData
+  importData,
+  sendTestNotification
 } from '../api';
 import ConfirmPopup from './ConfirmPopup';
 
@@ -83,11 +84,79 @@ const Settings = ({ data, onRefresh }) => {
   const [importStatus, setImportStatus] = useState('');
   const fileInputRef = useRef(null);
 
+  // Notification state
+  const [notifPermission, setNotifPermission] = useState(false);
+  const [notifTestStatus, setNotifTestStatus] = useState('');
+
+  useEffect(() => {
+    const checkPermission = () => {
+      try {
+        if (window.OneSignal) {
+          window.OneSignalDeferred = window.OneSignalDeferred || [];
+          window.OneSignalDeferred.push(async (OneSignal) => {
+            const perm = OneSignal.Notifications.permission;
+            setNotifPermission(perm);
+          });
+        }
+      } catch {
+        // OneSignal not loaded yet
+      }
+    };
+    checkPermission();
+    const interval = setInterval(checkPermission, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
   const sortedCategories = [...data.categories].sort((a, b) => a.order - b.order);
 
   const handleToggleStock = async () => {
     await updateSettings({ stockEnabled: !data.stockEnabled });
     await onRefresh();
+  };
+
+  const handleToggleNotifications = async () => {
+    await updateSettings({ notificationsEnabled: !data.notificationsEnabled });
+    await onRefresh();
+  };
+
+  const handleRegisterNotifications = () => {
+    try {
+      window.OneSignalDeferred = window.OneSignalDeferred || [];
+      window.OneSignalDeferred.push(async (OneSignal) => {
+        await OneSignal.Notifications.requestPermission();
+        setNotifPermission(OneSignal.Notifications.permission);
+      });
+    } catch {
+      setPopup({
+        message: 'Could not request notification permission. Please check your browser settings.',
+        onYes: () => setPopup(null)
+      });
+    }
+  };
+
+  const handleTestNotification = async () => {
+    setNotifTestStatus('Sending...');
+    try {
+      let subId = null;
+      try {
+        if (window.OneSignal) {
+          await new Promise((resolve) => {
+            window.OneSignalDeferred.push(async (OneSignal) => {
+              const sub = OneSignal.User.PushSubscription;
+              subId = sub.id || null;
+              resolve();
+            });
+          });
+        }
+      } catch {
+        // Continue without subscription ID
+      }
+      const result = await sendTestNotification(subId);
+      setNotifTestStatus(result.success ? 'Test notification sent!' : 'Failed to send. Check permissions.');
+    } catch {
+      setNotifTestStatus('Error sending test notification.');
+    }
+    setTimeout(() => setNotifTestStatus(''), 4000);
   };
 
   const handleCreateCategory = async () => {
@@ -233,6 +302,45 @@ const Settings = ({ data, onRefresh }) => {
         {data.stockEnabled && (
           <p className="toggle-hint">Stock will decrease when you mark a medicine as taken</p>
         )}
+      </section>
+
+      <section className="settings-section">
+        <h2 className="section-title">Push Notifications</h2>
+        <div className="toggle-row">
+          <span className="toggle-label">Enable notifications</span>
+          <button
+            className={`toggle-switch ${data.notificationsEnabled ? 'on' : ''}`}
+            onClick={handleToggleNotifications}
+          >
+            <span className="toggle-knob" />
+          </button>
+        </div>
+        {data.notificationsEnabled && (
+          <p className="toggle-hint">Notifications will be sent when medicine time arrives</p>
+        )}
+        <div className="notif-status-row">
+          <span className="notif-status-label">This Device:</span>
+          <span className={`notif-status-badge ${notifPermission ? 'active' : 'inactive'}`}>
+            {notifPermission ? 'Active' : 'Not Active'}
+          </span>
+        </div>
+        <div className="notif-actions">
+          <button className="btn btn-notif-register" onClick={handleRegisterNotifications}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="22" height="22">
+              <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
+              <path d="M13.73 21a2 2 0 01-3.46 0" />
+            </svg>
+            Register for Notifications
+          </button>
+          <button className="btn btn-notif-test" onClick={handleTestNotification}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="22" height="22">
+              <path d="M22 2L11 13" />
+              <path d="M22 2l-7 20-4-9-9-4 20-7z" />
+            </svg>
+            Send Test Notification
+          </button>
+        </div>
+        {notifTestStatus && <p className="notif-test-status">{notifTestStatus}</p>}
       </section>
 
       <section className="settings-section">
