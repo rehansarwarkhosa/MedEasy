@@ -166,7 +166,7 @@ const sendOneSignalNotification = async (headings, contents, subscriptionIds = n
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${ONESIGNAL_API_KEY}`,
+        'Authorization': `Key ${ONESIGNAL_API_KEY}`,
       },
       body: JSON.stringify(body),
     });
@@ -397,13 +397,16 @@ app.post('/api/import', upload.single('file'), (req, res) => {
 app.post('/api/notifications/test', async (req, res) => {
   const { subscriptionId } = req.body;
   const targets = subscriptionId ? [subscriptionId] : null;
+  console.log('Test notification request - subscriptionId:', subscriptionId);
+  console.log('Using API key prefix:', ONESIGNAL_API_KEY.substring(0, 20) + '...');
+  console.log('Using App ID:', ONESIGNAL_APP_ID);
   const result = await sendOneSignalNotification(
     'MedEasy Test',
     'Push notifications are working correctly!',
     targets
   );
   const success = result && !result.errors && !result.error && result.httpStatus >= 200 && result.httpStatus < 300;
-  res.json({ success, result });
+  res.json({ success, result, debug: { appId: ONESIGNAL_APP_ID, keyPrefix: ONESIGNAL_API_KEY.substring(0, 20) } });
 });
 
 app.get('/api/cron/notifications', async (_req, res) => {
