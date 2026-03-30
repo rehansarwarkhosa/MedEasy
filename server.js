@@ -13,8 +13,12 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Use persistent disk on Render so data survives deploys, local data dir otherwise
-const DATA_DIR = process.env.RENDER ? '/opt/render/data' : join(__dirname, 'data');
+const RENDER_DISK = '/opt/render/data';
+const isRender = existsSync(RENDER_DISK) || process.env.RENDER_EXTERNAL_HOSTNAME || process.env.RENDER;
+const DATA_DIR = isRender ? RENDER_DISK : join(__dirname, 'data');
 const DATA_FILE = join(DATA_DIR, 'data.json');
+console.log(`[MedEasy] Data directory: ${DATA_DIR}`);
+console.log(`[MedEasy] Persistent disk detected: ${existsSync(RENDER_DISK)}`);
 const upload = multer({ storage: multer.memoryStorage() });
 
 // OneSignal credentials - set these as environment variables on Render
@@ -184,6 +188,18 @@ const sendOneSignalNotification = async (headings, contents, subscriptionIds = n
 app.get('/api/data', (_req, res) => {
   resetDailyStatuses();
   res.json(readData());
+});
+
+app.get('/api/debug/storage', (_req, res) => {
+  res.json({
+    dataDir: DATA_DIR,
+    dataFile: DATA_FILE,
+    diskExists: existsSync(RENDER_DISK),
+    fileExists: existsSync(DATA_FILE),
+    isRender: !!isRender,
+    envRender: process.env.RENDER || null,
+    envHostname: process.env.RENDER_EXTERNAL_HOSTNAME || null,
+  });
 });
 
 app.put('/api/data', (req, res) => {
