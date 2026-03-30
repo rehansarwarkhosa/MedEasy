@@ -57,6 +57,9 @@ const App = () => {
         {activeTab === 'settings' && (
           <Settings data={data} onRefresh={fetchData} />
         )}
+        <div className="app-footer">
+          <p className="credit-text">Developed by Rehan Sarwar</p>
+        </div>
       </div>
       <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
     </div>

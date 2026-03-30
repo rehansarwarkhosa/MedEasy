@@ -614,10 +614,6 @@ const Settings = ({ data, onRefresh }) => {
         {importStatus && <p className="import-status">{importStatus}</p>}
       </section>
 
-      <section className="settings-section settings-credit">
-        <p className="credit-text">Developed by Rehan Sarwar</p>
-      </section>
-
       {popup && (
         <ConfirmPopup
           message={popup.message}

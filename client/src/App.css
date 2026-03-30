@@ -490,7 +490,7 @@ input {
 .settings-section {
   background: #fff;
   border-radius: 16px;
-  padding: 20px;
+  padding: 16px;
   margin-bottom: 16px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
 }
@@ -609,11 +609,12 @@ input {
 
 .time-pickers-row {
   display: flex;
-  gap: 12px;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .time-picker {
-  flex: 1;
+  width: 100%;
 }
 
 .time-picker-label {
@@ -636,8 +637,8 @@ input {
 }
 
 .time-picker-btn {
-  width: 48px;
-  height: 52px;
+  width: 44px;
+  height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -677,17 +678,17 @@ input {
 
 .cat-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  padding: 14px 12px;
-  gap: 8px;
+  padding: 10px 10px;
+  gap: 6px;
 }
 
 .cat-info {
   display: flex;
   align-items: center;
-  gap: 10px;
-  flex: 1;
+  gap: 8px;
+  flex: 1 1 100%;
   cursor: pointer;
   min-width: 0;
 }
@@ -729,11 +730,12 @@ input {
   display: flex;
   gap: 4px;
   flex-shrink: 0;
+  margin-left: auto;
 }
 
 .icon-btn {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border-radius: 10px;
   background: #F5F0EA;
   display: flex;
@@ -778,7 +780,7 @@ input {
 }
 
 .manage-medicines {
-  padding: 12px;
+  padding: 10px;
   background: #FAFAF7;
   border-top: 2px solid #F0EBE3;
 }
@@ -801,16 +803,16 @@ input {
 
 .med-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
 }
 
 .med-info {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  flex: 1;
+  flex: 1 1 100%;
   cursor: pointer;
   min-width: 0;
 }
@@ -851,7 +853,7 @@ input {
   display: flex;
   gap: 4px;
   flex-shrink: 0;
-  padding-top: 2px;
+  margin-left: auto;
 }
 
 .edit-med-form {
@@ -996,11 +998,9 @@ input {
   margin-top: 10px;
 }
 
-.settings-credit {
+.app-footer {
   text-align: center;
-  background: transparent;
-  box-shadow: none;
-  padding: 12px;
+  padding: 16px 0 4px;
 }
 
 .credit-text {
