@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { jsPDF } from 'jspdf';
 import {
   createCategory,
   updateCategory,
@@ -64,6 +65,292 @@ const TimePicker = ({ label, value, onChange }) => (
   </div>
 );
 
+// ========== PDF Generation ==========
+
+const addPdfFooter = (doc) => {
+  const pageCount = doc.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    const pw = doc.internal.pageSize.getWidth();
+    const ph = doc.internal.pageSize.getHeight();
+    doc.setFontSize(9);
+    doc.setTextColor(170, 170, 170);
+    doc.text('Developed by Rehan Sarwar', pw / 2, ph - 8, { align: 'center' });
+    doc.text(`Page ${i} of ${pageCount}`, pw - 15, ph - 8, { align: 'right' });
+  }
+};
+
+const getAllMedicinesSorted = (categories) => {
+  const meds = [];
+  categories.forEach(cat => {
+    cat.medicines.forEach(med => {
+      meds.push({ ...med, categoryName: cat.name, categoryColor: cat.color });
+    });
+  });
+  meds.sort((a, b) => a.showFrom.localeCompare(b.showFrom) || a.showTo.localeCompare(b.showTo));
+  return meds;
+};
+
+const generateSchedulePDF = (data, showCategories) => {
+  const doc = new jsPDF('p', 'mm', 'a4');
+  const pw = doc.internal.pageSize.getWidth();
+  const margin = 15;
+  const usable = pw - margin * 2;
+  let y = 15;
+
+  // Title
+  doc.setFontSize(24);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(231, 76, 60);
+  doc.text('MedEasy', pw / 2, y, { align: 'center' });
+  y += 8;
+  doc.setFontSize(16);
+  doc.setTextColor(80, 80, 80);
+  doc.text('Medicine Schedule', pw / 2, y, { align: 'center' });
+  y += 6;
+  doc.setFontSize(10);
+  doc.setTextColor(150, 150, 150);
+  const today = new Date().toLocaleDateString('en-PK', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  doc.text(`Generated: ${today}`, pw / 2, y, { align: 'center' });
+  y += 10;
+
+  // Divider
+  doc.setDrawColor(220, 220, 220);
+  doc.setLineWidth(0.5);
+  doc.line(margin, y, pw - margin, y);
+  y += 8;
+
+  const meds = getAllMedicinesSorted(data.categories);
+  if (meds.length === 0) {
+    doc.setFontSize(14);
+    doc.setTextColor(150, 150, 150);
+    doc.text('No medicines configured.', pw / 2, y, { align: 'center' });
+    addPdfFooter(doc);
+    doc.save('MedEasy-Schedule.pdf');
+    return;
+  }
+
+  // Table header
+  const drawTableHeader = () => {
+    doc.setFillColor(231, 76, 60);
+    doc.rect(margin, y, usable, 10, 'F');
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(255, 255, 255);
+    doc.text('#', margin + 3, y + 7);
+    doc.text('Time', margin + 12, y + 7);
+    doc.text('Medicine Name', margin + 55, y + 7);
+    if (showCategories) {
+      doc.text('Category', margin + 130, y + 7);
+    }
+    y += 14;
+  };
+
+  drawTableHeader();
+  let count = 0;
+
+  meds.forEach((med) => {
+    if (y > 265) {
+      doc.addPage();
+      y = 15;
+      drawTableHeader();
+    }
+    count++;
+    const isEven = count % 2 === 0;
+    if (isEven) {
+      doc.setFillColor(248, 248, 248);
+      doc.rect(margin, y - 5, usable, 12, 'F');
+    }
+
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100, 100, 100);
+    doc.text(`${count}`, margin + 3, y + 2);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(50, 50, 50);
+    const timeStr = `${formatTime12(med.showFrom)} - ${formatTime12(med.showTo)}`;
+    doc.text(timeStr, margin + 12, y + 2);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(30, 30, 30);
+    doc.setFontSize(12);
+    doc.text(med.name, margin + 55, y + 2);
+
+    if (showCategories) {
+      doc.setFontSize(10);
+      doc.setTextColor(120, 120, 120);
+      doc.text(med.categoryName, margin + 130, y + 2);
+    }
+
+    y += 12;
+  });
+
+  // Summary
+  y += 5;
+  if (y > 265) { doc.addPage(); y = 15; }
+  doc.setDrawColor(220, 220, 220);
+  doc.line(margin, y, pw - margin, y);
+  y += 8;
+  doc.setFontSize(11);
+  doc.setTextColor(100, 100, 100);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Total medicines: ${meds.length}`, margin, y);
+
+  addPdfFooter(doc);
+  doc.save('MedEasy-Schedule.pdf');
+};
+
+const generateMarkSheetPDF = (data, days) => {
+  const doc = new jsPDF('l', 'mm', 'a4');
+  const pw = doc.internal.pageSize.getWidth();
+  const ph = doc.internal.pageSize.getHeight();
+  const margin = 10;
+  const usable = pw - margin * 2;
+  let y = 10;
+
+  // Title
+  doc.setFontSize(20);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(231, 76, 60);
+  doc.text('MedEasy', pw / 2, y, { align: 'center' });
+  y += 7;
+  doc.setFontSize(14);
+  doc.setTextColor(80, 80, 80);
+  doc.text(`Medicine Tracking Sheet (${days} Days)`, pw / 2, y, { align: 'center' });
+  y += 5;
+  doc.setFontSize(9);
+  doc.setTextColor(150, 150, 150);
+  const today = new Date().toLocaleDateString('en-PK', { year: 'numeric', month: 'long', day: 'numeric' });
+  doc.text(`Starting from: ${today}`, pw / 2, y, { align: 'center' });
+  y += 8;
+
+  const meds = getAllMedicinesSorted(data.categories);
+  if (meds.length === 0) {
+    doc.setFontSize(14);
+    doc.setTextColor(150, 150, 150);
+    doc.text('No medicines configured.', pw / 2, y, { align: 'center' });
+    addPdfFooter(doc);
+    doc.save('MedEasy-MarkSheet.pdf');
+    return;
+  }
+
+  // Calculate column widths
+  const nameColW = 45;
+  const timeColW = 35;
+  const fixedW = nameColW + timeColW;
+  const dayColW = Math.min((usable - fixedW) / days, 9);
+  const totalTableW = fixedW + dayColW * days;
+  const tableX = margin + (usable - totalTableW) / 2;
+  const rowH = 8;
+
+  // Header row
+  doc.setFillColor(231, 76, 60);
+  doc.rect(tableX, y, totalTableW, rowH + 2, 'F');
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(255, 255, 255);
+  doc.text('Medicine', tableX + 3, y + 6);
+  doc.text('Time', tableX + nameColW + 2, y + 6);
+
+  // Day numbers
+  doc.setFontSize(7);
+  for (let d = 0; d < days; d++) {
+    const dx = tableX + fixedW + d * dayColW;
+    doc.text(`${d + 1}`, dx + dayColW / 2, y + 6, { align: 'center' });
+  }
+  y += rowH + 2;
+
+  // Medicine rows
+  meds.forEach((med, idx) => {
+    if (y + rowH > ph - 18) {
+      doc.addPage();
+      y = 12;
+      // Reprint header
+      doc.setFillColor(231, 76, 60);
+      doc.rect(tableX, y, totalTableW, rowH + 2, 'F');
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(255, 255, 255);
+      doc.text('Medicine', tableX + 3, y + 6);
+      doc.text('Time', tableX + nameColW + 2, y + 6);
+      doc.setFontSize(7);
+      for (let d = 0; d < days; d++) {
+        const dx = tableX + fixedW + d * dayColW;
+        doc.text(`${d + 1}`, dx + dayColW / 2, y + 6, { align: 'center' });
+      }
+      y += rowH + 2;
+    }
+
+    const isEven = idx % 2 === 0;
+    if (isEven) {
+      doc.setFillColor(250, 248, 245);
+      doc.rect(tableX, y, totalTableW, rowH, 'F');
+    }
+
+    // Row border
+    doc.setDrawColor(220, 215, 210);
+    doc.setLineWidth(0.2);
+    doc.rect(tableX, y, totalTableW, rowH);
+
+    // Medicine name
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(40, 40, 40);
+    const medName = med.name.length > 22 ? med.name.substring(0, 20) + '..' : med.name;
+    doc.text(medName, tableX + 2, y + 5.5);
+
+    // Name/time separator
+    doc.line(tableX + nameColW, y, tableX + nameColW, y + rowH);
+
+    // Time
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100, 100, 100);
+    const t = `${formatTime12(med.showFrom)}-${formatTime12(med.showTo)}`;
+    doc.text(t, tableX + nameColW + 2, y + 5.5);
+
+    // Time/boxes separator
+    doc.line(tableX + fixedW, y, tableX + fixedW, y + rowH);
+
+    // Checkbox cells
+    for (let d = 0; d < days; d++) {
+      const dx = tableX + fixedW + d * dayColW;
+      // Vertical lines between day cells
+      if (d > 0) {
+        doc.setDrawColor(230, 225, 220);
+        doc.line(dx, y, dx, y + rowH);
+      }
+      // Small checkbox
+      const boxSize = 3.5;
+      const bx = dx + (dayColW - boxSize) / 2;
+      const by = y + (rowH - boxSize) / 2;
+      doc.setDrawColor(180, 175, 170);
+      doc.setLineWidth(0.3);
+      doc.rect(bx, by, boxSize, boxSize);
+    }
+
+    y += rowH;
+  });
+
+  // Bottom border
+  doc.setDrawColor(200, 200, 200);
+  doc.setLineWidth(0.3);
+
+  // Instructions
+  y += 6;
+  if (y < ph - 25) {
+    doc.setFontSize(9);
+    doc.setTextColor(150, 150, 150);
+    doc.setFont('helvetica', 'italic');
+    doc.text('Mark each box with a tick when medicine is taken.', tableX, y);
+  }
+
+  addPdfFooter(doc);
+  doc.save('MedEasy-MarkSheet.pdf');
+};
+
+
 const Settings = ({ data, onRefresh }) => {
   const [catName, setCatName] = useState('');
   const [catColor, setCatColor] = useState(PRESET_COLORS[0]);
@@ -87,6 +374,10 @@ const Settings = ({ data, onRefresh }) => {
   // Notification state
   const [notifPermission, setNotifPermission] = useState(false);
   const [notifTestStatus, setNotifTestStatus] = useState('');
+
+  // PDF state
+  const [pdfShowCategories, setPdfShowCategories] = useState(true);
+  const [markSheetDays, setMarkSheetDays] = useState(15);
 
   useEffect(() => {
     const checkPermission = () => {
@@ -346,6 +637,60 @@ const Settings = ({ data, onRefresh }) => {
           </button>
         </div>
         {notifTestStatus && <p className="notif-test-status">{notifTestStatus}</p>}
+      </section>
+
+      <section className="settings-section">
+        <h2 className="section-title">Export PDF</h2>
+
+        <div className="pdf-subsection">
+          <h3 className="pdf-subtitle">Schedule (for reading)</h3>
+          <p className="pdf-desc">A clear, time-ordered medicine schedule to print and read easily.</p>
+          <div className="toggle-row">
+            <span className="toggle-label">Show categories</span>
+            <button
+              className={`toggle-switch ${pdfShowCategories ? 'on' : ''}`}
+              onClick={() => setPdfShowCategories(!pdfShowCategories)}
+            >
+              <span className="toggle-knob" />
+            </button>
+          </div>
+          <button className="btn btn-pdf" onClick={() => generateSchedulePDF(data, pdfShowCategories)}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="22" height="22">
+              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+              <path d="M14 2v6h6" />
+              <path d="M16 13H8" />
+              <path d="M16 17H8" />
+              <path d="M10 9H8" />
+            </svg>
+            Export Schedule PDF
+          </button>
+        </div>
+
+        <div className="pdf-divider" />
+
+        <div className="pdf-subsection">
+          <h3 className="pdf-subtitle">Mark Sheet (for daily tracking)</h3>
+          <p className="pdf-desc">Print and tick off medicines each day with a pen.</p>
+          <div className="pdf-days-select">
+            <span className="pdf-days-label">Days:</span>
+            {[7, 15, 30].map(d => (
+              <button
+                key={d}
+                className={`pdf-days-btn ${markSheetDays === d ? 'active' : ''}`}
+                onClick={() => setMarkSheetDays(d)}
+              >
+                {d}
+              </button>
+            ))}
+          </div>
+          <button className="btn btn-pdf-mark" onClick={() => generateMarkSheetPDF(data, markSheetDays)}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="22" height="22">
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <path d="M9 12l2 2 4-4" />
+            </svg>
+            Export Mark Sheet PDF
+          </button>
+        </div>
       </section>
 
       <section className="settings-section">

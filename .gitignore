@@ -2,7 +2,7 @@ node_modules
 client/node_modules
 client/dist
 data/data.json
-
+Sample Project
 .claude
 CLAUDE.md
 prompt.md
