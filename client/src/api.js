@@ -87,8 +87,20 @@ export const importData = async (file) => {
   return res.json();
 };
 
-export const sendTestNotification = (subscriptionId) =>
+export const lateLogMedicine = (categoryId, medicineId) =>
+  request('/late-log', {
+    method: 'POST',
+    body: JSON.stringify({ categoryId, medicineId })
+  });
+
+export const historyLateLog = (date, medicineName, categoryName) =>
+  request('/history-late-log', {
+    method: 'POST',
+    body: JSON.stringify({ date, medicineName, categoryName })
+  });
+
+export const sendTestNotification = () =>
   request('/notifications/test', {
     method: 'POST',
-    body: JSON.stringify({ subscriptionId })
+    body: JSON.stringify({})
   });

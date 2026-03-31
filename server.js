@@ -22,8 +22,8 @@ console.log(`[MedEasy] Persistent disk detected: ${existsSync(RENDER_DISK)}`);
 const upload = multer({ storage: multer.memoryStorage() });
 
 // OneSignal credentials - set these as environment variables on Render
-const ONESIGNAL_APP_ID = process.env.ONESIGNAL_APP_ID || '';
-const ONESIGNAL_API_KEY = process.env.ONESIGNAL_API_KEY || '';
+const ONESIGNAL_APP_ID = process.env.ONESIGNAL_APP_ID || 'e760add4-350f-4656-9cf5-ea624f038b39';
+const ONESIGNAL_API_KEY = process.env.ONESIGNAL_REST_API_KEY || process.env.ONESIGNAL_API_KEY || '';
 
 app.use(express.json());
 
@@ -153,30 +153,28 @@ cron.schedule('*/5 * * * *', () => {
 
 // ========== OneSignal Helper ==========
 
-const sendOneSignalNotification = async (headings, contents, subscriptionIds = null) => {
-  const body = {
-    app_id: ONESIGNAL_APP_ID,
-    headings: { en: headings },
-    contents: { en: contents },
-  };
-  if (subscriptionIds && subscriptionIds.length > 0) {
-    body.include_subscription_ids = subscriptionIds;
-  } else {
-    body.included_segments = ['Subscribed Users'];
-  }
+const sendOneSignalNotification = async (headings, contents) => {
+  const apiKey = ONESIGNAL_API_KEY;
+  if (!apiKey) return { error: 'ONESIGNAL_API_KEY not set' };
 
   try {
-    const response = await fetch('https://api.onesignal.com/notifications', {
+    const response = await fetch('https://onesignal.com/api/v1/notifications', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Key ${ONESIGNAL_API_KEY}`,
+        'Authorization': `Basic ${apiKey}`,
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        app_id: ONESIGNAL_APP_ID,
+        included_segments: ['All'],
+        headings: { en: headings },
+        contents: { en: contents },
+      }),
     });
     const result = await response.json();
     console.log('OneSignal response:', response.status, JSON.stringify(result));
-    return { ...result, httpStatus: response.status };
+    if (result.errors) return { errors: result.errors };
+    return { success: true, recipients: result.recipients || 0, id: result.id };
   } catch (err) {
     console.error('OneSignal notification error:', err.message);
     return { error: err.message };
@@ -343,6 +341,35 @@ app.post('/api/toggle-medicine', (req, res) => {
   res.json(data);
 });
 
+// Late log: mark a missed today's medicine as taken (late entry)
+app.post('/api/late-log', (req, res) => {
+  const data = readData();
+  const { categoryId, medicineId } = req.body;
+  const cat = data.categories.find(c => c.id === categoryId);
+  if (!cat) return res.status(404).json({ error: 'Category not found' });
+  const med = cat.medicines.find(m => m.id === medicineId);
+  if (!med) return res.status(404).json({ error: 'Medicine not found' });
+  med.taken = true;
+  med.lateEntry = true;
+  if (data.stockEnabled) med.stock = Math.max(0, med.stock - 1);
+  saveData(data);
+  res.json(data);
+});
+
+// Late log for past day history entries
+app.post('/api/history-late-log', (req, res) => {
+  const data = readData();
+  const { date, medicineName, categoryName } = req.body;
+  const historyDay = data.medicineHistory.find(d => d.date === date);
+  if (!historyDay) return res.status(404).json({ error: 'History day not found' });
+  const med = historyDay.medicines.find(m => m.name === medicineName && m.categoryName === categoryName);
+  if (!med) return res.status(404).json({ error: 'Medicine not found in history' });
+  med.taken = true;
+  med.lateEntry = true;
+  saveData(data);
+  res.json(data);
+});
+
 app.post('/api/health-logs', (req, res) => {
   const data = readData();
   const { type, systolic, diastolic, pulse, sugarType, sugarLevel } = req.body;
@@ -410,19 +437,15 @@ app.post('/api/import', upload.single('file'), (req, res) => {
 
 // ========== Push Notification Endpoints ==========
 
-app.post('/api/notifications/test', async (req, res) => {
-  const { subscriptionId } = req.body;
-  const targets = subscriptionId ? [subscriptionId] : null;
+app.post('/api/notifications/test', async (_req, res) => {
   if (!ONESIGNAL_API_KEY || !ONESIGNAL_APP_ID) {
     return res.json({ success: false, result: { errors: ['ONESIGNAL_APP_ID and ONESIGNAL_API_KEY environment variables not set on server'] } });
   }
   const result = await sendOneSignalNotification(
     'MedEasy Test',
-    'Push notifications are working correctly!',
-    targets
+    'Push notifications are working correctly!'
   );
-  const success = result && !result.errors && !result.error && result.httpStatus >= 200 && result.httpStatus < 300;
-  res.json({ success, result });
+  res.json({ success: !!result.success, result });
 });
 
 app.get('/api/cron/notifications', async (_req, res) => {
@@ -507,10 +530,11 @@ app.get('/api/cron/notifications', async (_req, res) => {
   let sentCount = 0;
   for (const notif of notifications) {
     const result = await sendOneSignalNotification(notif.headings, notif.contents);
-    if (result && !result.errors) {
+    if (result && result.success) {
       data.notificationsSent.push({ date, key: notif.sentKey });
       sentCount++;
     }
+    console.log(`[Cron] Notification "${notif.sentKey}":`, JSON.stringify(result));
   }
 
   if (sentCount > 0 || data.notificationsSent.length > 0) {

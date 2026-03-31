@@ -428,21 +428,7 @@ const Settings = ({ data, onRefresh }) => {
   const handleTestNotification = async () => {
     setNotifTestStatus('Sending...');
     try {
-      let subId = null;
-      try {
-        if (window.OneSignal) {
-          await new Promise((resolve) => {
-            window.OneSignalDeferred.push(async (OneSignal) => {
-              const sub = OneSignal.User.PushSubscription;
-              subId = sub.id || null;
-              resolve();
-            });
-          });
-        }
-      } catch {
-        // Continue without subscription ID
-      }
-      const result = await sendTestNotification(subId);
+      const result = await sendTestNotification();
       if (result.success) {
         setNotifTestStatus('Test notification sent!');
       } else {

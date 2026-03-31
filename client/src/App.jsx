@@ -49,7 +49,7 @@ const App = () => {
           <DailyTracker data={data} onRefresh={fetchData} />
         )}
         {activeTab === 'history' && (
-          <History data={data} />
+          <History data={data} onRefresh={fetchData} />
         )}
         {activeTab === 'health' && (
           <HealthLog data={data} onRefresh={fetchData} />

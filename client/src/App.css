@@ -1093,6 +1093,20 @@ input {
   padding: 14px 18px;
   margin-bottom: 10px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+}
+
+.history-expand-icon {
+  display: flex;
+  color: #999;
+  transition: transform 0.2s;
+}
+
+.history-expand-icon.expanded {
+  transform: rotate(180deg);
 }
 
 .history-date-text {
@@ -1209,6 +1223,30 @@ input {
 
 .status-missed {
   color: #E74C3C;
+}
+
+.status-late {
+  color: #E67E22;
+  font-style: italic;
+}
+
+.btn-late-log {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 14px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 800;
+  background: #E67E22;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-late-log:active {
+  background: #D35400;
 }
 
 /* ========== Health Log ========== */
