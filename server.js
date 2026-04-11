@@ -315,7 +315,7 @@ app.post('/api/history-late-log', async (req, res) => {
     if (!med) return res.status(404).json({ error: 'Medicine not found in history' });
     med.taken = true;
     med.lateEntry = true;
-    await sql`UPDATE medicine_history SET medicines = ${JSON.stringify(medicines)} WHERE id = ${row.id}`;
+    await sql`UPDATE medicine_history SET medicines = ${sql.json(medicines)} WHERE id = ${row.id}`;
     res.json(await readData());
   } catch (err) {
     console.error('POST history-late-log error:', err);
