@@ -7,7 +7,5 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-    disk:
-      name: medeasy-data
-      mountPath: /opt/render/data
-      sizeGB: 1
+      - key: DATABASE_URL
+        sync: false
