@@ -308,7 +308,7 @@ app.post('/api/late-log', async (req, res) => {
 app.post('/api/history-late-log', async (req, res) => {
   try {
     const { date, medicineName, categoryName } = req.body;
-    const rows = await sql`SELECT * FROM medicine_history WHERE date = ${date}`;
+    const rows = await sql`SELECT id, date, medicines FROM medicine_history WHERE date = ${date}`;
     if (rows.length === 0) return res.status(404).json({ error: 'History day not found' });
     const row = rows[0];
     let medicines = row.medicines;
@@ -316,12 +316,21 @@ app.post('/api/history-late-log', async (req, res) => {
       try { medicines = JSON.parse(medicines); } catch { medicines = []; }
     }
     if (!Array.isArray(medicines)) return res.status(500).json({ error: 'Invalid history data' });
-    const med = medicines.find(m => m.name === medicineName && m.categoryName === categoryName);
-    if (!med) return res.status(404).json({ error: 'Medicine not found in history' });
-    med.taken = true;
-    med.lateEntry = true;
-    const medicinesJson = JSON.stringify(medicines);
-    await sql`UPDATE medicine_history SET medicines = ${medicinesJson}::jsonb WHERE id = ${row.id}`;
+    let found = false;
+    for (let i = 0; i < medicines.length; i++) {
+      if (medicines[i].name === medicineName && medicines[i].categoryName === categoryName && !medicines[i].taken) {
+        medicines[i].taken = true;
+        medicines[i].lateEntry = true;
+        found = true;
+        break;
+      }
+    }
+    if (!found) return res.status(404).json({ error: 'Medicine not found in history' });
+    await sql`
+      UPDATE medicine_history
+      SET medicines = ${JSON.stringify(medicines)}::jsonb
+      WHERE date = ${date}
+    `;
     res.json(await readData());
   } catch (err) {
     console.error('POST history-late-log error:', err.message, err.stack);
