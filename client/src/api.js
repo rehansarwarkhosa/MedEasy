@@ -73,8 +73,17 @@ export const createHealthLog = (entry) =>
 export const deleteHealthLog = (id) =>
   request(`/health-logs/${id}`, { method: 'DELETE' });
 
-export const exportData = () => {
-  window.open(`${BASE}/export`, '_blank');
+export const exportData = async () => {
+  const res = await fetch(`${BASE}/export`);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'medeasy-backup.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 };
 
 export const importData = async (file) => {
@@ -84,6 +93,10 @@ export const importData = async (file) => {
     method: 'POST',
     body: formData
   });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Import failed' }));
+    throw new Error(err.error || 'Import failed');
+  }
   return res.json();
 };
 

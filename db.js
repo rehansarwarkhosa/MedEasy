@@ -119,7 +119,12 @@ export async function readData() {
       ...(h.type === 'bp' ? { systolic: h.systolic, diastolic: h.diastolic, pulse: h.pulse } : {}),
       ...(h.type === 'sugar' ? { sugarType: h.sugar_type, sugarLevel: h.sugar_level } : {})
     })),
-    medicineHistory: historyRows.map(r => ({ date: r.date, medicines: r.medicines })),
+    medicineHistory: historyRows.map(r => {
+      let meds = r.medicines;
+      if (typeof meds === 'string') { try { meds = JSON.parse(meds); } catch { meds = []; } }
+      if (!Array.isArray(meds)) meds = [];
+      return { date: r.date, medicines: meds };
+    }),
     lastResetDate: settings.last_reset_date || '',
     stockEnabled: settings.stock_enabled,
     notificationsEnabled: settings.notifications_enabled,

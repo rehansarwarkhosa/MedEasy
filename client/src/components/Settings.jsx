@@ -550,8 +550,12 @@ const Settings = ({ data, onRefresh }) => {
     await onRefresh();
   };
 
-  const handleExport = () => {
-    exportData();
+  const handleExport = async () => {
+    try {
+      await exportData();
+    } catch {
+      alert('Export failed. Please try again.');
+    }
   };
 
   const handleImport = async (e) => {

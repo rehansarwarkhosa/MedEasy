@@ -62,7 +62,7 @@ const History = ({ data, onRefresh }) => {
   const todayTaken = todayPast.filter(m => m.taken).length;
   const todayMissed = todayPast.filter(m => !m.taken).length;
 
-  const history = data.medicineHistory || [];
+  const history = (data.medicineHistory || []).filter(day => day && day.date && Array.isArray(day.medicines));
 
   const handleLateLogToday = (med) => {
     setPopup({
