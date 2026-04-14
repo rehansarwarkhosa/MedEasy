@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { lateLogMedicine, historyLateLog } from '../api';
 import ConfirmPopup from './ConfirmPopup';
+import ProgressOverlay from './ProgressOverlay';
 
 const getPKTime = () => {
   const now = new Date();
@@ -26,6 +27,7 @@ const History = ({ data, onRefresh }) => {
   const [currentTime, setCurrentTime] = useState(getPKTime());
   const [expandedDays, setExpandedDays] = useState({ today: true });
   const [popup, setPopup] = useState(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -68,9 +70,12 @@ const History = ({ data, onRefresh }) => {
     setPopup({
       message: `Mark "${med.name}" as taken (late entry)?`,
       onYes: async () => {
-        await lateLogMedicine(med.categoryId, med.medicineId);
         setPopup(null);
+        setSaving(true);
+        await lateLogMedicine(med.categoryId, med.medicineId);
         await onRefresh();
+        await new Promise(r => setTimeout(r, 1500));
+        setSaving(false);
       }
     });
   };
@@ -79,9 +84,12 @@ const History = ({ data, onRefresh }) => {
     setPopup({
       message: `Mark "${med.name}" as taken (late entry) for ${formatDate(date)}?`,
       onYes: async () => {
-        await historyLateLog(date, med.name, med.categoryName);
         setPopup(null);
+        setSaving(true);
+        await historyLateLog(date, med.name, med.categoryName);
         await onRefresh();
+        await new Promise(r => setTimeout(r, 1500));
+        setSaving(false);
       }
     });
   };
@@ -120,9 +128,16 @@ const History = ({ data, onRefresh }) => {
           {med.categoryName}
         </span>
         {med.taken ? (
-          <span className={`history-med-status ${med.lateEntry ? 'status-late' : 'status-taken'}`}>
-            {med.lateEntry ? 'Late' : 'Taken'}
-          </span>
+          <div className="history-med-status-wrap">
+            <span className={`history-med-status ${med.lateEntry ? 'status-late' : 'status-taken'}`}>
+              {med.lateEntry ? 'Late' : 'Taken'}
+            </span>
+            {med.lateEntry && med.lateLogTime && (
+              <span className="history-late-time">
+                {formatTime12(med.lateLogTime)}{med.lateLogDate ? `, ${formatDate(med.lateLogDate)}` : ''}
+              </span>
+            )}
+          </div>
         ) : (
           <button className="btn-late-log" onClick={() => onLateLog(med)}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="18" height="18">
@@ -215,6 +230,7 @@ const History = ({ data, onRefresh }) => {
           onNo={() => setPopup(null)}
         />
       )}
+      {saving && <ProgressOverlay message="Logging medicine..." />}
     </div>
   );
 };

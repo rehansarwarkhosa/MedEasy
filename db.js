@@ -74,7 +74,13 @@ export async function initDB() {
     )
   `;
   // Index for quick date lookups
-  await sql`CREATE INDEX IF NOT EXISTS idx_medicine_history_date ON medicine_history(date)`;
+  // Deduplicate history rows - keep the one with the highest id for each date
+  await sql`
+    DELETE FROM medicine_history a USING medicine_history b
+    WHERE a.date = b.date AND a.id < b.id
+  `;
+  await sql`DROP INDEX IF EXISTS idx_medicine_history_date`;
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_medicine_history_date ON medicine_history(date)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_health_logs_created ON health_logs(created_at DESC)`;
 
   console.log('[MedEasy] Database tables initialized');

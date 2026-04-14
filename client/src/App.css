@@ -1230,6 +1230,20 @@ input {
   font-style: italic;
 }
 
+.history-med-status-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.history-late-time {
+  font-size: 11px;
+  font-weight: 600;
+  color: #E67E22;
+  opacity: 0.8;
+}
+
 .btn-late-log {
   display: flex;
   align-items: center;
@@ -1498,6 +1512,77 @@ input {
   background: #F0EBE3;
   padding: 3px 10px;
   border-radius: 8px;
+}
+
+/* ========== Progress Overlay ========== */
+
+.progress-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 300;
+  padding: 20px;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.progress-card {
+  background: #fff;
+  border-radius: 24px;
+  padding: 36px 32px 28px;
+  max-width: 320px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.progress-spinner {
+  position: relative;
+  width: 48px;
+  height: 48px;
+}
+
+.progress-percent {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 800;
+  color: #E74C3C;
+}
+
+.progress-bar-track {
+  width: 100%;
+  height: 10px;
+  background: #F0EBE3;
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #E74C3C, #E67E22, #27AE60);
+  border-radius: 5px;
+  transition: width 0.1s ease;
+}
+
+.progress-message {
+  font-size: 20px;
+  font-weight: 700;
+  color: #555;
 }
 
 @media (min-width: 600px) {

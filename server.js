@@ -63,12 +63,13 @@ const resetDailyStatuses = async () => {
           categoryColor: cat.color,
           showFrom: med.show_from || '00:00',
           showTo: med.show_to || '23:59',
-          taken: med.taken
+          taken: med.taken,
+          ...(med.late_entry ? { lateEntry: true } : {})
         });
       }
     }
     if (historyMeds.length > 0) {
-      await sql`INSERT INTO medicine_history (date, medicines) VALUES (${settings.last_reset_date}, ${sql.json(historyMeds)})`;
+      await sql`INSERT INTO medicine_history (date, medicines) VALUES (${settings.last_reset_date}, ${JSON.stringify(historyMeds)}::jsonb) ON CONFLICT (date) DO NOTHING`;
       // Keep last 30 days
       await sql`DELETE FROM medicine_history WHERE id NOT IN (SELECT id FROM medicine_history ORDER BY date DESC LIMIT 30)`;
     }
@@ -297,6 +298,7 @@ app.post('/api/late-log', async (req, res) => {
     if (!med) return res.status(404).json({ error: 'Medicine not found' });
     const [settings] = await sql`SELECT stock_enabled FROM settings WHERE id = 1`;
     const newStock = settings.stock_enabled ? Math.max(0, med.stock - 1) : med.stock;
+    const { time: logTime } = getPKDateTime();
     await sql`UPDATE medicines SET taken = true, late_entry = true, stock = ${newStock} WHERE id = ${medicineId}`;
     res.json(await readData());
   } catch (err) {
@@ -319,8 +321,11 @@ app.post('/api/history-late-log', async (req, res) => {
     let found = false;
     for (let i = 0; i < medicines.length; i++) {
       if (medicines[i].name === medicineName && medicines[i].categoryName === categoryName && !medicines[i].taken) {
+        const { date: logDate, time: logTime } = getPKDateTime();
         medicines[i].taken = true;
         medicines[i].lateEntry = true;
+        medicines[i].lateLogTime = logTime;
+        medicines[i].lateLogDate = logDate;
         found = true;
         break;
       }

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { createHealthLog, deleteHealthLog } from '../api';
 import ConfirmPopup from './ConfirmPopup';
+import ProgressOverlay from './ProgressOverlay';
 
 const SUGAR_TYPES = [
   { value: 'fasting', label: 'Fasting' },
@@ -29,6 +30,8 @@ const HealthLog = ({ data, onRefresh }) => {
   const [sugarType, setSugarType] = useState('fasting');
   const [sugarLevel, setSugarLevel] = useState('');
   const [popup, setPopup] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [savingMsg, setSavingMsg] = useState('');
 
   const resetForm = () => {
     setEntryType(null);
@@ -41,6 +44,8 @@ const HealthLog = ({ data, onRefresh }) => {
 
   const handleSubmitBP = async () => {
     if (!systolic || !diastolic) return;
+    setSavingMsg('Saving blood pressure...');
+    setSaving(true);
     await createHealthLog({
       type: 'bp',
       systolic,
@@ -49,10 +54,14 @@ const HealthLog = ({ data, onRefresh }) => {
     });
     resetForm();
     await onRefresh();
+    await new Promise(r => setTimeout(r, 1500));
+    setSaving(false);
   };
 
   const handleSubmitSugar = async () => {
     if (!sugarLevel) return;
+    setSavingMsg('Saving blood sugar...');
+    setSaving(true);
     await createHealthLog({
       type: 'sugar',
       sugarType,
@@ -60,15 +69,21 @@ const HealthLog = ({ data, onRefresh }) => {
     });
     resetForm();
     await onRefresh();
+    await new Promise(r => setTimeout(r, 1500));
+    setSaving(false);
   };
 
   const handleDelete = (id) => {
     setPopup({
       message: 'Delete this entry?',
       onYes: async () => {
-        await deleteHealthLog(id);
         setPopup(null);
+        setSavingMsg('Deleting entry...');
+        setSaving(true);
+        await deleteHealthLog(id);
         await onRefresh();
+        await new Promise(r => setTimeout(r, 1500));
+        setSaving(false);
       }
     });
   };
@@ -233,6 +248,7 @@ const HealthLog = ({ data, onRefresh }) => {
           onNo={() => setPopup(null)}
         />
       )}
+      {saving && <ProgressOverlay message={savingMsg} />}
     </div>
   );
 };
